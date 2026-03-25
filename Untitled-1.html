@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GymPro-AI | 旗艦級智慧運動守護者</title>
+    
+    <!-- 核心 UI 套件 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <!-- MediaPipe AI 視覺庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+        
+        :root {
+            --primary: #2dd4bf;
+            --primary-glow: rgba(45, 212, 191, 0.4);
+            --danger: #f43f5e;
+            --bg-dark: #020617;
+        }
+
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background-color: var(--bg-dark); 
+            color: #f8fafc; 
+            scroll-behavior: smooth;
+            overflow-x: hidden;
+        }
+
+        .bg-grid {
+            background-image: radial-gradient(circle at 2px 2px, rgba(45, 212, 191, 0.05) 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #2dd4bf, #0ea5e9, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% auto;
+            animation: shine 4s linear infinite;
+        }
+
+        @keyframes shine { to { background-position: 200% center; } }
+
+        .video-container-ai { 
+            position: relative; 
+            width: 100%; 
+            height: 600px; 
+            background: #000; 
+            border-radius: 3rem; 
+            overflow: hidden; 
+            border: 2px solid rgba(255, 255, 255, 0.05); 
+            transition: all 0.3s ease;
+        }
+        
+        .video-container-ai.alert-danger {
+            border-color: var(--danger);
+            box-shadow: inset 0 0 120px rgba(244, 63, 94, 0.6);
+        }
+
+        video#input_video, canvas#output_canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); 
+        }
+
+        .interactive-card { transition: all 0.3s ease; cursor: pointer; }
+        .interactive-card:hover { transform: translateY(-8px); border-color: var(--primary); }
+
+        .rep-card {
+            background: linear-gradient(135deg, #134e4a 0%, #042f2e 100%);
+            border: 1px solid rgba(45, 212, 191, 0.3);
+            position: relative;
+        }
+
+        .chat-bubble { position: relative; padding: 1.5rem; border-radius: 1.5rem; max-width: 85%; line-height: 1.6; }
+        .chat-bubble.coach { background: #134e4a; border-bottom-left-radius: 0; align-self: flex-start; }
+        .chat-bubble.user { background: #1e293b; border-bottom-right-radius: 0; align-self: flex-end; }
+        
+        .btn-primary { background: linear-gradient(135deg, #2dd4bf 0%, #0d9488 100%); color: #020617; font-weight: 900; transition: all 0.2s; cursor: pointer; }
+        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 0 20px var(--primary); }
+
+        .modal-animate-in { animation: zoom-in 0.3s ease-out; }
+        @keyframes zoom-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body class="bg-grid">
+
+    <!-- 導覽列 -->
+    <nav class="fixed top-0 w-full z-50 glass-panel border-b border-white/5">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center text-left text-white">
+            <div class="flex items-center gap-3 group">
+                <div class="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center">
+                    <i data-lucide="zap" class="text-slate-950 fill-slate-950 w-6 h-6"></i>
+                </div>
+                <div class="flex flex-col text-left">
+                    <span class="text-xl font-black tracking-tighter text-white leading-none">GYMPRO <span class="text-teal-400">AI</span></span>
+                    <span class="text-[8px] font-bold text-slate-500 tracking-[0.4em] uppercase text-white">Enterprise v5.5</span>
+                </div>
+            </div>
+            <div class="hidden lg:flex space-x-12 text-[10px] font-bold uppercase tracking-[0.25em] text-slate-400 text-white">
+                <a href="#functions" class="hover:text-teal-400 transition">核心功能</a>
+                <a href="#simulation" class="hover:text-teal-400 transition">AI 偵測模擬</a>
+                <a href="#results" class="hover:text-teal-400 transition">數位成果</a>
+            </div>
+            <div class="flex items-center gap-6">
+                <div id="voice-toggle" onclick="toggleVoice()" class="cursor-pointer transition-all hover:scale-110 text-white text-teal-400">
+                    <i id="voice-icon" data-lucide="volume-2" class="w-6 h-6"></i>
+                </div>
+                <a href="#reserve" class="btn-primary px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-900">智慧預約</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-48 pb-24 px-6 text-center text-white">
+        <div class="container mx-auto relative z-10 text-center">
+            <div class="inline-flex items-center gap-3 px-5 py-2 bg-teal-500/10 border border-teal-500/20 rounded-full text-teal-400 text-[10px] font-black tracking-[0.4em] mb-12 uppercase">
+                AIoT 智慧健身旗艦專案
+            </div>
+            <h1 class="text-7xl md:text-9xl font-black mb-12 leading-[1] tracking-tighter">
+                專業教練<br><span class="gradient-text">24小時守候</span>
+            </h1>
+            <p class="text-slate-400 max-w-3xl mx-auto text-xl leading-loose mb-20 font-medium text-white">
+                整合 MediaPipe 4.0 實時視覺運算與真實 Gemini 腦核。支援 50° 深度收縮門檻校驗，確保每一計次都符合科學訓練標準。
+            </p>
+            <div class="flex flex-wrap justify-center gap-8">
+                <a href="#simulation" class="btn-primary px-14 py-6 rounded-3xl font-black text-xl shadow-2xl text-slate-900">啟動視覺教練</a>
+                <button onclick="openReport()" class="px-14 py-6 glass-panel text-white font-bold rounded-3xl border border-white/10 hover:bg-white/5 transition-all text-xl">技術白皮書</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 核心功能區 -->
+    <section id="functions" class="py-24 px-6 text-white text-left">
+        <div class="max-w-6xl mx-auto grid lg:grid-cols-3 gap-10">
+            <div onclick="document.getElementById('simulation').scrollIntoView({behavior:'smooth'})" class="interactive-card glass-panel p-10 rounded-[3rem] border border-white/5">
+                <i data-lucide="scan-eye" class="text-teal-400 w-12 h-12 mb-6"></i>
+                <h3 class="text-2xl font-black mb-4 text-white">1. 實時動作矯正</h3>
+                <p class="text-slate-500 text-sm leading-loose">監控 50° 收縮夾角，偵測反彈路徑。未達標即語音警示：「動作不完整，要彎舉完全！」</p>
+            </div>
+            <div onclick="openAIChat()" class="interactive-card glass-panel p-10 rounded-[3rem] border border-white/5">
+                <i data-lucide="message-square" class="text-teal-400 w-12 h-12 mb-6"></i>
+                <h3 class="text-2xl font-black mb-4 text-white">2. 真實 AI 顧問</h3>
+                <p class="text-slate-500 text-sm leading-loose">即時 API 串接 Gemini 1.5 Flash。主動歡迎並逐步引導，提供專業且即時的訓練建議。</p>
+            </div>
+            <div onclick="showFacilityStatus()" class="interactive-card glass-panel p-10 rounded-[3rem] border border-white/5">
+                <i data-lucide="monitor" class="text-teal-400 w-12 h-12 mb-6"></i>
+                <h3 class="text-2xl font-black mb-4 text-white">3. 智慧場館管理</h3>
+                <p class="text-slate-500 text-sm leading-loose">即時同步 16 項 IoT 器材與設施狀態。與預約過濾系統連動，有效解決器材排隊痛點。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI 偵測與控制主區域 -->
+    <section id="simulation" class="py-20 px-6">
+        <div class="max-w-6xl mx-auto glass-panel rounded-[4rem] overflow-hidden border border-white/10 flex flex-col lg:flex-row text-white text-white">
+            <div class="w-full lg:w-2/3 bg-slate-950 min-h-[600px] relative text-white">
+                <div class="absolute top-6 left-1/2 -translate-x-1/2 z-20 px-6 py-2 bg-black/60 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3">
+                    <span id="ai-status-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600 text-white"></span>
+                    <span id="ai-status-text" class="text-[10px] font-black uppercase tracking-widest text-white">COACH OFFLINE</span>
+                </div>
+                <div id="cam-container" class="video-container-ai h-full text-white">
+                    <video id="input_video" playsinline muted autoplay></video>
+                    <canvas id="output_canvas"></canvas>
+                    <div id="placeholder-ui" class="absolute inset-0 z-30 flex flex-col items-center justify-center text-center p-8 bg-slate-950 text-white">
+                        <i data-lucide="camera" class="w-12 h-12 text-teal-500/40 mb-6 animate-pulse text-white"></i>
+                        <h4 class="text-white font-black text-3xl mb-4 text-white">啟動 AI 監視</h4>
+                        <p id="placeholder-tip" class="text-slate-500 text-sm max-w-sm leading-loose text-white text-white">正在同步說明文字...</p>
+                    </div>
+                    <!-- HUD 層 -->
+                    <div id="ai-hud" class="absolute inset-0 z-40 hidden pointer-events-none p-10 flex flex-col justify-between text-white">
+                        <div class="flex justify-between items-start text-white text-white">
+                            <div class="rep-card p-8 rounded-[2.5rem] border border-teal-500/30 text-white">
+                                <span class="text-[10px] text-teal-400 font-black tracking-widest block mb-1">Total Reps</span>
+                                <div id="rep-count" class="text-8xl font-black text-white">0</div>
+                                <div id="side-indicator" class="mt-2 text-[9px] font-black text-slate-400 uppercase tracking-widest text-white">鎖定中...</div>
+                            </div>
+                            <div class="bg-black/60 p-6 rounded-2xl border border-white/10 backdrop-blur-md text-white">
+                                <span class="text-[10px] text-slate-500 font-bold block mb-1 uppercase text-slate-400 text-white">Live Angle</span>
+                                <div id="live-angle" class="text-4xl font-black text-teal-400">0.0°</div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900/90 p-8 rounded-[2.5rem] border border-white/10 text-center shadow-3xl text-white">
+                            <p id="coach-tip-text" class="text-2xl font-black text-white text-white text-white">偵測中，請調整站位...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 控制台 -->
+            <div class="w-full lg:w-1/3 p-12 bg-slate-900/40 flex flex-col justify-center border-l border-white/5 text-white text-left text-white text-white text-white">
+                <h3 class="text-3xl font-black mb-10 italic uppercase tracking-tighter text-white">Coach Console</h3>
+                <div class="space-y-8 mb-12">
+                    <div class="space-y-3">
+                        <label class="text-[11px] font-black text-teal-500 uppercase tracking-widest block ml-1 text-teal-400">訓練項目</label>
+                        <select id="exercise-mode" onchange="resetReps()" class="w-full bg-slate-800 border-2 border-white/5 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-teal-500 appearance-none text-white cursor-pointer">
+                            <option value="curl" selected>💪 手臂彎舉訓練</option>
+                            <option value="squat">🦵 基礎深蹲訓練</option>
+                        </select>
+                    </div>
+                    <div class="p-6 bg-white/[0.03] rounded-3xl border border-white/5 text-white">
+                        <p id="goal-text" class="text-xs text-slate-400 leading-relaxed text-white">正在載入提示語...</p>
+                    </div>
+                </div>
+                <div class="space-y-5">
+                    <button id="cam-toggle-btn" onclick="toggleAICamera()" class="btn-primary w-full py-6 rounded-2xl font-black text-lg text-slate-900 text-slate-900">啟動系統</button>
+                    <button onclick="resetReps()" class="w-full py-4 bg-white/5 rounded-2xl text-xs font-bold text-slate-500 hover:text-white transition text-slate-400">重置數據</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 數位成果區 -->
+    <section id="results" class="py-32 px-6 bg-slate-950/20 text-white text-center text-white text-white text-white">
+        <div class="container mx-auto px-6 text-white text-center">
+            <h2 class="text-5xl font-black mb-24 italic uppercase tracking-widest text-center text-white text-white">Project Results</h2>
+            <div class="grid lg:grid-cols-2 gap-20">
+                <div class="space-y-10 group text-white">
+                    <h3 class="text-2xl font-black flex items-center justify-center gap-4 text-white"><i data-lucide="video" class="text-teal-400 text-white"></i> AI 模擬演示</h3>
+                    <div class="aspect-video glass-panel rounded-[4rem] overflow-hidden border border-white/5 relative cursor-pointer shadow-3xl text-white text-white text-white"
+                         onclick="window.open('https://labs.google/fx/tools/whisk/share/animate/29adnpf4b0000', '_blank')">
+                        <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&q=80&w=1000" class="w-full h-full object-cover opacity-30 group-hover:scale-105 transition-transform duration-1000 text-white">
+                        <div class="absolute inset-0 flex flex-col items-center justify-center text-white text-white">
+                            <div class="w-24 h-24 bg-teal-500 rounded-full flex items-center justify-center text-slate-950 mb-6 shadow-2xl group-hover:scale-110 transition-transform">
+                                <i data-lucide="play" fill="currentColor" class="ml-1 text-slate-900 text-white"></i>
+                            </div>
+                            <p class="font-black text-xl tracking-tight text-white text-white text-white text-white">播放展示動畫</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-10 group text-white">
+                    <h3 class="text-2xl font-black flex items-center justify-center gap-4 text-white text-white"><i data-lucide="file-bar-chart" class="text-teal-400 text-white"></i> 技術成果報告</h3>
+                    <div class="aspect-video glass-panel rounded-[4rem] flex flex-col items-center justify-center p-20 border border-white/5 shadow-3xl relative text-white text-white text-white">
+                        <i data-lucide="book-open" class="w-20 h-20 text-teal-400/20 mb-12 text-teal-400 text-teal-400"></i>
+                        <h4 class="text-white font-black text-3xl mb-6 text-white text-white text-white">GymPro 技術白皮書</h4>
+                        <p class="text-slate-500 text-sm leading-loose text-center mb-12 max-w-sm text-white text-white">詳載 3D 向量運算、行程完整度監控與全肢體鎖定偵測邏輯。</p>
+                        <button onclick="openReport()" class="btn-primary px-14 py-4 rounded-3xl font-black relative z-10 text-slate-900 text-white">閱讀完整報告</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 智慧預約區 -->
+    <section id="reserve" class="py-24 px-6 bg-slate-950/50 text-white text-left text-white text-white text-white">
+        <div class="max-w-6xl mx-auto glass-panel p-16 rounded-[4rem] border border-white/10 text-white text-left text-white text-white text-white text-white text-white">
+            <h2 class="text-5xl font-black text-center mb-16 italic tracking-tighter uppercase text-white">Smart Booking</h2>
+            <form class="grid grid-cols-1 md:grid-cols-2 gap-12 text-white" onsubmit="handleBookingSubmit(event)">
+                <div class="space-y-6 text-white text-white text-white">
+                    <label class="text-xs font-black text-slate-500 uppercase ml-2 text-white text-white">預約項目 (同步全館)</label>
+                    <select id="book-item" onchange="updateAvailableTimes()" class="w-full bg-slate-900 border-2 border-white/5 rounded-3xl px-8 py-5 text-white font-bold focus:border-teal-500 outline-none text-white text-white text-white">
+                        <optgroup label="AI 視覺矯正區" class="bg-slate-950 text-white">
+                            <option value="Rack01">AI 深蹲架 #01</option>
+                            <option value="Rack02">AI 深蹲架 #02</option>
+                            <option value="Bench01">AI 臥推架 #01</option>
+                            <option value="Bench02">AI 臥推架 #02</option>
+                            <option value="Smith01">多功能史密斯機</option>
+                        </optgroup>
+                        <optgroup label="力量訓練區" class="bg-slate-950 text-white">
+                            <option value="Lat01">高拉背肌訓練機 #01</option>
+                            <option value="LegPress01">腿部推蹬機</option>
+                            <option value="Cable01">滑輪交叉機</option>
+                            <option value="Chest01">胸部推舉機</option>
+                        </optgroup>
+                        <optgroup label="有氧與自由重量區" class="bg-slate-950 text-white">
+                            <option value="Treadmill01">跑步機 #01</option>
+                            <option value="Treadmill02">跑步機 #02</option>
+                            <option value="Elliptical01">橢圓機 #01</option>
+                            <option value="Bike01">飛輪機</option>
+                            <option value="Row01">室內划船機</option>
+                            <option value="Dumbbell01">啞鈴區 #01</option>
+                        </optgroup>
+                        <optgroup label="專業服務" class="bg-slate-950 text-white">
+                            <option value="InBody">InBody 身體分析儀</option>
+                            <option value="AICoach">AI 虛擬顧問諮詢</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="space-y-6">
+                    <label class="text-xs font-black text-slate-500 uppercase ml-2 text-white text-white text-white text-white text-white">日期</label>
+                    <input type="text" id="booking-date" class="w-full bg-slate-900 border-2 border-white/5 rounded-3xl px-8 py-5 text-white">
+                </div>
+                <div class="space-y-6">
+                    <label class="text-xs font-black text-slate-500 uppercase ml-2 text-white text-white text-white text-white text-white">時段</label>
+                    <select id="book-time" class="w-full bg-slate-900 border-2 border-white/5 rounded-3xl px-8 py-5 text-white font-bold outline-none text-white text-white"></select>
+                </div>
+                <div class="space-y-6">
+                    <label class="text-xs font-black text-slate-500 uppercase ml-2 text-white text-white text-white text-white text-white">預約姓名</label>
+                    <input type="text" id="book-name" class="w-full bg-slate-900 border-2 border-white/5 rounded-3xl px-8 py-5 text-white font-bold text-white text-white" placeholder="請輸入姓名" required>
+                </div>
+                <button type="submit" class="btn-primary md:col-span-2 py-6 rounded-3xl text-xl font-black text-slate-900 text-white text-white">確認預約</button>
+            </form>
+            <div id="booking-success" class="fixed inset-0 bg-black/95 z-[200] hidden flex items-center justify-center p-6 text-white text-center text-white text-white">
+                <div class="text-center glass-panel p-16 rounded-[4rem] border border-teal-500/30 max-w-sm w-full text-white text-white">
+                    <i data-lucide="check-circle" class="w-24 h-24 text-teal-400 mx-auto mb-8 text-white"></i>
+                    <h3 class="text-4xl font-black mb-8 text-white text-white">預約成功！</h3>
+                    <button onclick="document.getElementById('booking-success').classList.add('hidden')" class="btn-primary w-full py-4 rounded-2xl font-bold text-white text-white text-white">確認</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-24 border-t border-white/5 text-center text-white">
+        <p class="text-[11px] font-black uppercase tracking-[1em] text-slate-700 text-white">GymPro AI Enterprise Archive 2026</p>
+    </footer>
+
+    <!-- MODAL 1: 真實 API 互動顧問 -->
+    <div id="ai-chat-modal" class="fixed inset-0 bg-black/60 backdrop-blur-lg z-[100] hidden flex items-center justify-center p-4 text-white text-left">
+        <div class="max-w-2xl w-full h-[85vh] glass-panel rounded-[3rem] border border-teal-500/20 flex flex-col overflow-hidden modal-animate-in">
+            <div class="p-10 bg-teal-500 flex justify-between items-center text-slate-900 font-black">
+                <div class="flex items-center gap-4 text-slate-900">
+                    <i data-lucide="bot"></i>
+                    <div class="text-left text-slate-900"><div class="text-2xl leading-none mb-1">Coach AI</div><div class="text-[9px] uppercase opacity-60">Live API Connected</div></div>
+                </div>
+                <button onclick="closeAIChat()"><i data-lucide="x" class="w-10 h-10 text-slate-900"></i></button>
+            </div>
+            <div id="chat-container" class="flex-grow p-10 overflow-y-auto space-y-6 flex flex-col no-scrollbar bg-slate-950/40 text-white"></div>
+            <div class="p-8 border-t border-white/5 bg-slate-900/60 flex gap-4 text-white">
+                <input type="text" id="chat-input" placeholder="詢問您的訓練目標..." class="flex-grow bg-slate-800 border-2 border-white/10 rounded-2xl px-6 py-4 text-white outline-none focus:border-teal-500 transition-all">
+                <button onclick="sendMessage()" class="btn-primary p-4 rounded-2xl text-slate-900"><i data-lucide="send"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: 智慧場館儀表板 -->
+    <div id="facility-modal" class="fixed inset-0 bg-black/60 backdrop-blur-lg z-[100] hidden flex items-center justify-center p-4 text-white">
+        <div class="max-w-6xl w-full h-[85vh] glass-panel rounded-[4rem] border border-teal-500/30 flex flex-col overflow-hidden modal-animate-in">
+            <div class="p-10 bg-slate-900/80 flex justify-between items-center border-b border-white/5">
+                <div class="flex items-center gap-4 text-white"><i data-lucide="monitor" class="text-teal-400 w-8 h-8"></i><h3 class="text-3xl font-black italic uppercase">Gym IoT Dashboard</h3></div>
+                <button onclick="closeFacilityStatus()"><i data-lucide="x" class="text-slate-500 hover:text-white transition-colors"></i></button>
+            </div>
+            <div class="flex-grow p-10 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 gap-10 no-scrollbar text-white">
+                <div>
+                    <h4 class="text-teal-400 font-bold mb-6 flex items-center gap-3"><i data-lucide="cpu" class="w-4 h-4 text-teal-400"></i> 即時 IoT 器材狀態</h4>
+                    <div id="live-status-container" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-white"></div>
+                </div>
+                <div class="border-l border-white/5 pl-10 text-white">
+                    <h4 class="text-teal-400 font-bold mb-6 flex items-center gap-3"><i data-lucide="history" class="w-4 h-4 text-teal-400"></i> 今日預約摘要</h4>
+                    <div id="reservation-list" class="space-y-4 text-white"></div>
+                </div>
+            </div>
+            <div class="p-8 bg-slate-900/60 text-center border-t border-white/5">
+                <button onclick="closeFacilityStatus()" class="btn-primary px-16 py-4 rounded-2xl font-black text-slate-900">返回主視窗</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: 技術白皮書 -->
+    <div id="report-modal" class="fixed inset-0 bg-black/60 backdrop-blur-xl z-[150] hidden flex flex-col items-center overflow-y-auto py-24 px-6 text-white text-left">
+        <button onclick="closeReport()" class="fixed top-10 right-10 bg-white/10 p-4 rounded-full text-white hover:bg-white/20 transition-all"><i data-lucide="x"></i></button>
+        <div class="max-w-4xl w-full space-y-16 modal-animate-in">
+            <div class="glass-panel p-20 rounded-[4rem] text-center border-teal-500/20">
+                <h2 class="text-6xl font-black mb-6 gradient-text text-center">GymPro 技術報告</h2>
+                <p class="text-slate-400 text-2xl font-bold italic text-center">智慧健身安全與自動化守護系統專案報告</p>
+            </div>
+            <div class="grid md:grid-cols-2 gap-10 text-white">
+                <div class="glass-panel p-12 rounded-[3rem] text-left">
+                    <h3 class="text-teal-400 font-black text-2xl mb-8 flex items-center gap-3"><i data-lucide="award"></i> 專案核心價值與目標</h3>
+                    <p class="text-slate-300 leading-loose text-lg">解決新手在健身房因「姿勢不當」產生的運動傷害風險。提供 24/7 的實時電腦視覺矯正與文字 AI 教練指導。</p>
+                </div>
+                <div class="glass-panel p-12 rounded-[3rem] bg-teal-500/5 text-left">
+                    <h3 class="text-white font-black text-2xl mb-8 flex items-center gap-3"><i data-lucide="cpu"></i> 使用核心技術</h3>
+                    <ul class="space-y-4 text-slate-400 text-lg">
+                        <li>● MediaPipe 全身關節捕捉 (33 點位)</li>
+                        <li>● 真實 API 串接 Gemini 模型</li>
+                        <li>● 50° 收縮行程校驗混合演算法</li>
+                        <li>● IoT 器材狀態動態同步架構</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="glass-panel p-10 rounded-[3rem] text-center border-white/5">
+                <p class="text-slate-500 text-sm leading-relaxed mb-6 text-center">本案全面應用生成式 AI 開發：Gemini (邏輯/代碼)、Nano Banana (視覺)、Whisk (動畫)、Gamma (彙整)。</p>
+                <div class="flex justify-center gap-6">
+                    <span class="bg-white/5 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/5 text-white">AI Assisted Code</span>
+                    <span class="bg-white/5 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/5 text-white">2026 Tech Archive</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 訓練總結 Modal -->
+    <div id="summary-modal" class="fixed inset-0 bg-black/60 backdrop-blur-lg z-[200] hidden flex items-center justify-center p-4 text-white text-center">
+        <div class="max-w-sm w-full glass-panel p-12 rounded-[3rem] text-center border-teal-500/30">
+            <i data-lucide="award" class="w-20 h-20 text-teal-400 mx-auto mb-6"></i>
+            <h3 class="text-4xl font-black mb-2 text-white">訓練完成！</h3>
+            <div class="grid grid-cols-2 gap-6 my-10 text-white">
+                <div class="bg-white/5 p-5 rounded-2xl text-center"><p class="text-[10px] text-slate-500 font-bold mb-1 uppercase">Total Reps</p><p id="summary-reps" class="text-4xl font-black text-teal-400">0</p></div>
+                <div class="bg-white/5 p-5 rounded-2xl text-center"><p class="text-[10px] text-slate-500 font-bold mb-1 uppercase">Accuracy</p><p id="summary-accuracy" class="text-4xl font-black text-white">0%</p></div>
+            </div>
+            <button onclick="document.getElementById('summary-modal').classList.add('hidden')" class="btn-primary w-full py-5 rounded-2xl font-black text-slate-900">確認並同步</button>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // 🌟 您的原始 API KEY
+        const apiKey = "AIzaSyDTl742ZjZXboBshpO6iPJVgHeCnw0nHDI";
+
+        let pose, stream, animationFrameId;
+        let isCameraActive = false, repCount = 0, badRepCount = 0, alertTracked = false, stage = 'down', angleBuffer = [], chatHistory = [];
+        let lastVoiceTime = 0, isVoiceEnabled = true, currentSide = "left", minAngleThisRep = 180;
+        const BUFFER_SIZE = 4;
+
+        // 🚀 新增：全域預約資料庫 (用來儲存預設與新增加的預約)
+        let globalReservations = [
+            { time: '18:00', item: 'AI 深蹲架 #01', name: '王小明' }, 
+            { time: '20:00', item: '高拉背肌訓練機 #01', name: '張小姐' }, 
+            { time: '21:00', item: '跑步機 #02', name: '林先生' }
+        ];
+
+        // 🚀 設定 AI 的人設與引導流程 (System Instruction)
+        const systemPrompt = `
+            你是一個專業、友善且鼓勵人的 AI 健身教練，名字叫 GymPro。
+            請你遵守以下對話規則：
+            1. 每次只問「一個問題」，不要一次丟出多個問題讓使用者回答。
+            2. 當使用者告訴你目標（例如想練胸肌）後，請先給予肯定，並提供「一個」具體的訓練建議或器材推薦。
+            3. 接著，再引導式地問下一個問題（例如：你平常有去健身房的習慣嗎？或是你偏好用機械式還是自由重量？）。
+            4. 回答盡量簡短有力，像真人在聊天一樣，不要長篇大論。
+        `;
+
+        const video = document.getElementById('input_video');
+        const canvas = document.getElementById('output_canvas');
+        const ctx = canvas.getContext('2d');
+        const statusDot = document.getElementById('ai-status-dot');
+        const statusText = document.getElementById('ai-status-text');
+        const camContainer = document.getElementById('cam-container');
+
+        // 語音與 UI 控制
+        function speak(text, force = false) {
+            if (!isVoiceEnabled) return;
+            const synth = window.speechSynthesis;
+            if (!force && (synth.speaking || Date.now() - lastVoiceTime < 3000)) return;
+            if (force) synth.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'zh-TW'; utter.rate = 1.2;
+            synth.speak(utter);
+            lastVoiceTime = Date.now();
+        }
+
+        function toggleVoice() {
+            isVoiceEnabled = !isVoiceEnabled;
+            const icon = document.getElementById('voice-icon');
+            if (isVoiceEnabled) icon.setAttribute('data-lucide', 'volume-2');
+            else { icon.setAttribute('data-lucide', 'volume-x'); window.speechSynthesis.cancel(); }
+            lucide.createIcons();
+        }
+
+        function showFacilityStatus() { document.getElementById('facility-modal').classList.remove('hidden'); document.getElementById('facility-modal').classList.add('flex'); renderReservations(); renderLiveStatus(); }
+        function closeFacilityStatus() { document.getElementById('facility-modal').classList.add('hidden'); }
+        function openReport() { document.getElementById('report-modal').classList.remove('hidden'); document.getElementById('report-modal').classList.add('flex'); }
+        function closeReport() { document.getElementById('report-modal').classList.add('hidden'); }
+
+        function openAIChat() { 
+            document.getElementById('ai-chat-modal').classList.remove('hidden'); 
+            document.getElementById('ai-chat-modal').classList.add('flex'); 
+            const cont = document.getElementById('chat-container');
+            if (cont.children.length === 0) {
+                const welcome = "您好！我是您的 GymPro AI 專屬教練。很高興見到您！今天想針對哪個部位進行訓練呢？";
+                const div = document.createElement('div');
+                div.className = 'chat-bubble coach text-white text-left leading-relaxed mb-4';
+                div.innerText = welcome;
+                cont.appendChild(div);
+                chatHistory.push({ role: "model", parts: [{ text: welcome }] });
+            }
+        }
+        function closeAIChat() { document.getElementById('ai-chat-modal').classList.add('hidden'); }
+
+        async function initPoseEngine() {
+            if (pose) return;
+            statusText.innerText = "LOADING AI...";
+            try {
+                pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
+                pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.55, minTrackingConfidence: 0.55 });
+                pose.onResults(onPoseResults);
+                statusText.innerText = "COACH READY"; statusDot.className = "w-2.5 h-2.5 rounded-full bg-teal-500";
+            } catch (e) { statusText.innerText = "AI ERROR"; statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500"; }
+        }
+
+        async function toggleAICamera() {
+            const btn = document.getElementById('cam-toggle-btn');
+            if (!isCameraActive) {
+                try {
+                    await initPoseEngine();
+                    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play(); isCameraActive = true;
+                        document.getElementById('placeholder-ui').classList.add('hidden');
+                        document.getElementById('ai-hud').classList.remove('hidden');
+                        btn.innerText = "停止系統"; speak("教練已就位，請開始動作。", true); startAILoop();
+                    };
+                } catch (e) { console.error(e); }
+            } else {
+                isCameraActive = false; cancelAnimationFrame(animationFrameId);
+                if (stream) stream.getTracks().forEach(t => t.stop());
+                video.srcObject = null; btn.innerText = "啟動系統";
+                document.getElementById('placeholder-ui').classList.remove('hidden');
+                document.getElementById('ai-hud').classList.add('hidden');
+                const total = repCount + badRepCount;
+                document.getElementById('summary-reps').innerText = repCount;
+                document.getElementById('summary-accuracy').innerText = total > 0 ? (repCount/total*100).toFixed(1) + "%" : "0%";
+                document.getElementById('summary-modal').classList.remove('hidden');
+            }
+        }
+
+        function startAILoop() { const loop = async () => { if (!isCameraActive) return; canvas.width = video.videoWidth; canvas.height = video.videoHeight; if (pose) await pose.send({image: video}); animationFrameId = requestAnimationFrame(loop); }; loop(); }
+
+        function calculateAngle(A, B, C, is3D = false) {
+            const v1 = { x: A.x - B.x, y: A.y - B.y, z: is3D ? A.z - B.z : 0 };
+            const v2 = { x: C.x - B.x, y: C.y - B.y, z: is3D ? C.z - B.z : 0 };
+            const dot = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+            const m1 = Math.sqrt(v1.x**2 + v1.y**2 + v1.z**2);
+            const m2 = Math.sqrt(v2.x**2 + v2.y**2 + v2.z**2);
+            return (Math.acos(dot / (m1 * m2)) * 180) / Math.PI;
+        }
+
+        function onPoseResults(results) {
+            ctx.save(); ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (results.poseLandmarks) {
+                const lm = results.poseLandmarks;
+                const mode = document.getElementById('exercise-mode').value;
+                const lS = (lm[11].visibility + lm[13].visibility + lm[15].visibility) / 3;
+                const rS = (lm[12].visibility + lm[14].visibility + lm[16].visibility) / 3;
+                if (Math.abs(rS - lS) > 0.1) currentSide = rS > lS ? "right" : "left";
+                document.getElementById('side-indicator').innerText = "LOCK: " + currentSide.toUpperCase();
+
+                const pts = mode === 'curl' ? (currentSide === 'left' ? [11,13,15] : [12,14,16]) : (currentSide === 'left' ? [23,25,27] : [24,26,28]);
+                const isVis = pts.every(p => lm[p].visibility > 0.35);
+                let color = '#FFFFFF22', feedback = "正在捕捉...", isAlert = false;
+
+                if (isVis) {
+                    const angle = calculateAngle(lm[pts[0]], lm[pts[1]], lm[pts[2]], mode === 'squat');
+                    angleBuffer.push(angle); if (angleBuffer.length > BUFFER_SIZE) angleBuffer.shift();
+                    const smooth = angleBuffer.reduce((a,b)=>a+b)/angleBuffer.length;
+                    document.getElementById('live-angle').innerText = smooth.toFixed(1) + "°";
+
+                    if (mode === 'curl') {
+                        if (smooth > 145) { stage = "down"; color = '#2dd4bf'; feedback = "手臂已伸直"; minAngleThisRep = 180; }
+                        if (stage === "down") {
+                            if (smooth < minAngleThisRep) minAngleThisRep = smooth;
+                            if (minAngleThisRep > 50 && smooth > minAngleThisRep + 12 && smooth < 140) { 
+                                feedback = "動作不完整，要彎舉完全！"; isAlert = true; color = '#f43f5e'; 
+                            }
+                            if (smooth < 50) { stage = "up"; repCount++; triggerRepAni(); speak("做的漂亮", true); feedback = "做的漂亮！"; }
+                        }
+                        if (stage === "up" && smooth > 60 && smooth < 145) { feedback = "請完全伸直再做下一個！"; isAlert = true; color = '#f43f5e'; }
+                    } else {
+                        if (smooth > 160) { stage = "up"; color = '#2dd4bf'; feedback = "保持站立"; }
+                        if (smooth < 105 && stage === "up") { stage = "down"; repCount++; triggerRepAni(); speak("深度標準", true); feedback = "深度標準！"; }
+                        if (stage === "up" && smooth < 140 && smooth > 115) { feedback = "蹲得不夠深，請再低一點！"; isAlert = true; color = '#f43f5e'; }
+                    }
+                }
+                document.getElementById('coach-tip-text').innerText = feedback;
+                document.getElementById('rep-count').innerText = repCount;
+                if (isAlert) { camContainer.classList.add('alert-danger'); speak(feedback); if(!alertTracked){ badRepCount++; alertTracked=true; } }
+                else { camContainer.classList.remove('alert-danger'); alertTracked=false; }
+                drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: color, lineWidth: 5});
+                drawLandmarks(ctx, lm, {color: '#ffffff', lineWidth: 1, radius: 4});
+            }
+            ctx.restore();
+        }
+
+        // 預約與 IoT
+        function renderLiveStatus() {
+            const eq = [
+                { n: 'AI 深蹲架 #01', s: '使用中', c: 'red' }, { n: 'AI 深蹲架 #02', s: '閒置中', c: 'teal' }, 
+                { n: 'AI 臥推架 #01', s: '閒置中', c: 'teal' }, { n: 'AI 臥推架 #02', s: '使用中', c: 'red' }, 
+                { n: '多功能史密斯機', s: '使用中', c: 'red' }, { n: '高拉背肌訓練機 #01', s: '閒置中', c: 'teal' }, 
+                { n: '腿部推蹬機', s: '閒置中', c: 'teal' }, { n: '滑輪交叉機', s: '使用中', c: 'red' }, 
+                { n: '胸部推舉機', s: '閒置中', c: 'teal' }, { n: '跑步機 #01', s: '使用中', c: 'red' }, 
+                { n: '跑步機 #02', s: '閒置中', c: 'teal' }, { n: '橢圓機 #01', s: '使用中', c: 'red' }, 
+                { n: '飛輪機', s: '使用中', c: 'red' }, { n: '室內划船機', s: '閒置中', c: 'teal' }, 
+                { n: '啞鈴區 #01', s: '擁擠', c: 'red' }, { n: 'InBody 身體分析儀', s: '閒置中', c: 'teal' },
+                { n: 'AI 虛擬顧問諮詢', s: '在線', c: 'teal' }
+            ];
+            document.getElementById('live-status-container').innerHTML = eq.map(i => `
+                <div class="p-5 bg-white/5 rounded-2xl border border-white/5 flex flex-col gap-3 group hover:border-teal-500/30 transition-all text-white">
+                    <div class="flex justify-between items-center text-white"><span class="text-xs font-black text-slate-400 uppercase tracking-tighter">${i.n}</span><div class="w-2.5 h-2.5 rounded-full bg-${i.c === 'red' ? 'rose-500 animate-pulse' : 'teal-400'}"></div></div>
+                    <div class="flex justify-between items-end text-white text-white"><span class="text-lg font-black ${i.c === 'red' ? 'text-rose-400' : 'text-teal-400'}">${i.s}</span><span class="text-[9px] text-white/20 font-bold uppercase">IoT Active</span></div>
+                </div>`).join('');
+        }
+
+        // 🚀 修改：改為讀取 globalReservations 陣列
+        function renderReservations() { 
+            // 每次打開儀表板時，都會將最新的 globalReservations 渲染出來
+            document.getElementById('reservation-list').innerHTML = globalReservations.map(res => `
+                <div class="p-6 bg-white/5 rounded-2xl border border-white/5 flex justify-between items-center text-white text-left">
+                    <div>
+                        <div class="text-xs text-teal-400 font-black mb-1">${res.time}</div>
+                        <div class="text-lg text-white font-black text-white">${res.item}</div>
+                    </div>
+                    <div class="text-[10px] text-slate-500 uppercase font-bold">預約：${res.name}</div>
+                </div>`).join(''); 
+        }
+
+        function triggerRepAni() { const e = document.getElementById('rep-count'); e.classList.add('pop-effect'); setTimeout(()=>e.classList.remove('pop-effect'), 500); }
+        
+        // 🚀 動態生成早上 7 點到晚上 12 點 (24:00) 的時段
+        function updateAvailableTimes() { 
+            const s = document.getElementById('book-time'); 
+            const times = [];
+            for(let i = 7; i < 24; i++) {
+                let startHour = i.toString().padStart(2, '0') + ":00";
+                let endHour = (i + 1).toString().padStart(2, '0') + ":00";
+                times.push(`${startHour} - ${endHour}`);
+            }
+            s.innerHTML = times.map(t => `<option value="${t}">${t}</option>`).join(''); 
+        }
+        
+        flatpickr("#booking-date", { minDate: "today", dateFormat: "Y-m-d", defaultDate: "today" });
+        
+        // 🚀 修改：處理預約送出，將資料推入 globalReservations
+        function handleBookingSubmit(e) { 
+            e.preventDefault(); 
+            
+            // 1. 抓取表單資料
+            const itemSelect = document.getElementById('book-item');
+            const itemName = itemSelect.options[itemSelect.selectedIndex].text; // 取得選項的「文字」而非 value
+            const fullTime = document.getElementById('book-time').value;
+            const startTime = fullTime.split(' - ')[0]; // 只取前面的時間 (例如 09:00)
+            const userName = document.getElementById('book-name').value;
+
+            // 2. 將新預約加入到全域資料庫的最前面
+            globalReservations.unshift({ 
+                time: startTime, 
+                item: itemName, 
+                name: userName 
+            });
+
+            // 3. 顯示成功視窗並清空姓名欄位
+            document.getElementById('booking-success').classList.remove('hidden');
+            document.getElementById('book-name').value = '';
+        }
+
+        // 🚀 加入系統提示詞 (System Instruction) 讓 AI 逐步詢問
+        async function sendMessage() {
+            const input = document.getElementById('chat-input'); 
+            const cont = document.getElementById('chat-container'); 
+            const msg = input.value.trim(); 
+            if (!msg) return;
+            
+            input.value = ''; 
+            cont.innerHTML += `<div class="chat-bubble user text-white bg-[#1e293b] rounded-2xl p-6 self-end max-w-[85%] mb-4 leading-relaxed text-right">${msg}</div>`;
+            
+            const coachDiv = document.createElement('div'); 
+            coachDiv.className = 'chat-bubble coach text-white bg-[#134e4a] rounded-2xl p-6 self-start max-w-[85%] mb-4 leading-relaxed text-left';
+            coachDiv.innerText = "思考中..."; 
+            cont.appendChild(coachDiv); 
+            cont.scrollTop = cont.scrollHeight;
+
+            try {
+                // 1. 確保對話格式標準
+                const formattedHistory = chatHistory.map(h => ({
+                    role: h.role === "model" ? "model" : "user",
+                    parts: h.parts
+                }));
+                formattedHistory.push({ role: "user", parts: [{ text: msg }] });
+
+                // 2. 使用穩定的正式版名稱 gemini-2.5-flash
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                
+                // 3. 在 Payload 中加入 systemInstruction 參數
+                const payload = {
+                    contents: formattedHistory,
+                    systemInstruction: {
+                        parts: [{ text: systemPrompt }]
+                    }
+                };
+
+                const r = await fetch(url, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(payload) 
+                });
+                
+                const d = await r.json(); 
+                
+                if (!r.ok || d.error) {
+                    const status = r.status || d.error?.code;
+                    let errorMsg = d.error?.message || "未知錯誤";
+                    
+                    if (status === 429) {
+                        throw new Error("API 呼叫頻率太高了！Google 免費額度限制每分鐘 15 次，請稍等 1 分鐘後再試。");
+                    } else if (status === 404) {
+                        throw new Error("模型名稱失效。這可能是您的金鑰權限問題。");
+                    } else if (status === 400) {
+                        throw new Error("請求格式錯誤，請重新整理網頁清除歷史紀錄再試。");
+                    } else {
+                        throw new Error(errorMsg);
+                    }
+                }
+                
+                const resText = d.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!resText) throw new Error("API 未能回傳有效內容");
+
+                coachDiv.innerText = resText; 
+                chatHistory = formattedHistory;
+                chatHistory.push({ role: "model", parts: [{ text: resText }] });
+
+            } catch (e) { 
+                coachDiv.innerHTML = `<span style="color:#fca5a5;">⚠️ 連線失敗：${e.message}</span>`; 
+                console.error(e); 
+            }
+            cont.scrollTop = cont.scrollHeight;
+        }
+        
+        // 🌟 初始化載入：確保網頁開啟時，提示文字立刻與選單(彎舉)同步
+        function resetReps() { 
+            repCount = 0; badRepCount = 0; alertTracked = false; minAngleThisRep = 180; 
+            document.getElementById('rep-count').innerText = "0"; 
+            const mode = document.getElementById('exercise-mode').value;
+            const gt = document.getElementById('goal-text');
+            const pt = document.getElementById('placeholder-tip');
+            if (mode === 'curl') {
+                gt.innerText = "手臂彎舉需舉至 50° 以內完成收縮。行程不完全將被判定為無效並發出糾錯警告。";
+                pt.innerText = "系統將智慧捕捉肢體軌跡。手臂彎舉請收縮至 50° 以內方時計次。建議側身站立。";
+            } else {
+                gt.innerText = "基礎深蹲需下蹲至大腿平行地面。系統引進 3D 空間補償，建議側身站立以獲得最高精準度。";
+                pt.innerText = "系統將智慧捕捉肢體軌跡。深蹲請確保臀部下壓到位。建議側身站立以獲得準確 3D 數據。";
+            }
+        }
+        
+        window.onload = () => { 
+            updateAvailableTimes(); 
+            resetReps(); 
+        };
+    </script>
+</body>
+</html>
